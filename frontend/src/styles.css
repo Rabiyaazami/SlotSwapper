@@ -1,0 +1,7 @@
+body { font-family: Arial, sans-serif; margin: 0; padding: 0; background:#f6f8fa; }
+.app header { background: #222; color: white; padding: 10px 16px; display:flex; justify-content:space-between; align-items:center;}
+.app header button { margin-left:8px; }
+main { padding: 16px; }
+.card { background: white; padding: 12px; margin:8px 0; border-radius:6px; box-shadow: 0 1px 3px rgba(0,0,0,0.06);}
+.small { font-size: 0.9rem; color:#555; }
+.btn { padding:6px 10px; border-radius:5px; cursor:pointer; border:1px solid #bbb; background:#fff;}
