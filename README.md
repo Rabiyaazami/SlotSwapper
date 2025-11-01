@@ -75,11 +75,10 @@ When a swap is accepted, both users' calendars are automatically updated—User 
 -  Transaction safety: All-or-nothing operations
 
 ## ScreenShot
-**WEB-**
+**WEB-** **Mobile-**
 <img width="1880" height="747" alt="image" src="https://github.com/user-attachments/assets/1ecd363d-926f-422b-947d-eed30680fd63" />
 <img width="1885" height="857" alt="image" src="https://github.com/user-attachments/assets/b0472510-3950-43dd-8793-c609a9063395" />
 
-**Mobile-**
 <img width="396" height="776" alt="image" src="https://github.com/user-attachments/assets/bebbecd2-2d3a-45ef-bb44-223b8fcf092b" />
 <img width="392" height="733" alt="image" src="https://github.com/user-attachments/assets/d007ddba-8555-4212-9067-5d94bc1b9bc2" />
 
