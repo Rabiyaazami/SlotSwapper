@@ -10,27 +10,56 @@ export default function Signup({ onLogin, goLogin }) {
   async function submit(e) {
     e.preventDefault();
     try {
-      const res = await fetch((process.env.REACT_APP_API_URL || 'http://localhost:4000') + '/api/signup', {
-        method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({name,email,password})
+      const res = await api('/api/signup', {
+        method: 'POST',
+        body: JSON.stringify({name, email, password})
       });
-      const json = await res.json();
-      if (!res.ok) throw json;
-      localStorage.setItem('token', json.token);
-      onLogin(json.user);
+      localStorage.setItem('token', res.token);
+      onLogin(res.user);
     } catch (e) {
-      setErr(e.error || JSON.stringify(e));
+      setErr(e.error || e.message || 'Signup failed. Please try again.');
     }
   }
 
   return (
-    <div style={{maxWidth:420, margin:'40px auto'}}>
+    <div className="auth-container">
       <h2>Sign Up</h2>
       <form onSubmit={submit} className="card">
-        <div><label>Name</label><br/><input value={name} onChange={e=>setName(e.target.value)} /></div>
-        <div><label>Email</label><br/><input value={email} onChange={e=>setEmail(e.target.value)} /></div>
-        <div><label>Password</label><br/><input type="password" value={password} onChange={e=>setPassword(e.target.value)} /></div>
-        <div style={{marginTop:8}}><button className="btn">Sign up</button> <button type="button" className="btn" onClick={goLogin}>Have account?</button></div>
-        {err && <div className="small" style={{color:'red'}}>{err}</div>}
+        <div>
+          <label>Name</label>
+          <input 
+            type="text"
+            value={name} 
+            onChange={e=>setName(e.target.value)} 
+            placeholder="Enter your full name"
+            required
+          />
+        </div>
+        <div>
+          <label>Email</label>
+          <input 
+            type="email"
+            value={email} 
+            onChange={e=>setEmail(e.target.value)} 
+            placeholder="Enter your email"
+            required
+          />
+        </div>
+        <div>
+          <label>Password</label>
+          <input 
+            type="password" 
+            value={password} 
+            onChange={e=>setPassword(e.target.value)} 
+            placeholder="Enter your password"
+            required
+          />
+        </div>
+        <div className="button-group">
+          <button type="submit" className="btn btn-primary">Sign up</button>
+          <button type="button" className="btn btn-secondary" onClick={goLogin}>Have account?</button>
+        </div>
+        {err && <div className="error-message">{err}</div>}
       </form>
     </div>
   );

@@ -9,26 +9,46 @@ export default function Login({ onLogin, goSignup }) {
   async function submit(e) {
     e.preventDefault();
     try {
-      const res = await fetch((process.env.REACT_APP_API_URL || 'http://localhost:4000') + '/api/login', {
-        method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({email,password})
+      const res = await api('/api/login', {
+        method: 'POST',
+        body: JSON.stringify({email, password})
       });
-      const json = await res.json();
-      if (!res.ok) throw json;
-      localStorage.setItem('token', json.token);
-      onLogin(json.user);
+      localStorage.setItem('token', res.token);
+      onLogin(res.user);
     } catch (e) {
-      setErr(e.error || JSON.stringify(e));
+      setErr(e.error || e.message || 'Login failed. Please check your credentials.');
     }
   }
 
   return (
-    <div style={{maxWidth:420, margin:'40px auto'}}>
+    <div className="auth-container">
       <h2>Log In</h2>
       <form onSubmit={submit} className="card">
-        <div><label>Email</label><br/><input value={email} onChange={e=>setEmail(e.target.value)} /></div>
-        <div><label>Password</label><br/><input type="password" value={password} onChange={e=>setPassword(e.target.value)} /></div>
-        <div style={{marginTop:8}}><button className="btn">Login</button> <button type="button" className="btn" onClick={goSignup}>Sign up</button></div>
-        {err && <div className="small" style={{color:'red'}}>{err}</div>}
+        <div>
+          <label>Email</label>
+          <input 
+            type="email"
+            value={email} 
+            onChange={e=>setEmail(e.target.value)} 
+            placeholder="Enter your email"
+            required
+          />
+        </div>
+        <div>
+          <label>Password</label>
+          <input 
+            type="password" 
+            value={password} 
+            onChange={e=>setPassword(e.target.value)} 
+            placeholder="Enter your password"
+            required
+          />
+        </div>
+        <div className="button-group">
+          <button type="submit" className="btn btn-primary">Login</button>
+          <button type="button" className="btn btn-secondary" onClick={goSignup}>Sign up</button>
+        </div>
+        {err && <div className="error-message">{err}</div>}
       </form>
     </div>
   );

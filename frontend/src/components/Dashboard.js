@@ -37,27 +37,71 @@ export default function Dashboard() {
     load();
   }
 
+  function getStatusClass(status) {
+    const statusMap = {
+      'BUSY': 'status-busy',
+      'SWAPPABLE': 'status-swappable',
+      'SWAP_PENDING': 'status-pending'
+    };
+    return statusMap[status] || 'status-busy';
+  }
+
   return (
     <div>
       <h2>Your Events</h2>
       <form onSubmit={add} className="card">
-        <div><input placeholder="Title" value={title} onChange={e=>setTitle(e.target.value)} /></div>
-        <div><input type="datetime-local" value={start} onChange={e=>setStart(e.target.value)} /></div>
-        <div><input type="datetime-local" value={end} onChange={e=>setEnd(e.target.value)} /></div>
-        <div style={{marginTop:8}}><button className="btn">Add Event</button></div>
+        <div>
+          <input 
+            placeholder="Event Title" 
+            value={title} 
+            onChange={e=>setTitle(e.target.value)}
+            required
+          />
+        </div>
+        <div>
+          <input 
+            type="datetime-local" 
+            value={start} 
+            onChange={e=>setStart(e.target.value)}
+            required
+          />
+        </div>
+        <div>
+          <input 
+            type="datetime-local" 
+            value={end} 
+            onChange={e=>setEnd(e.target.value)}
+            required
+          />
+        </div>
+        <div>
+          <button type="submit" className="btn btn-primary">Add Event</button>
+        </div>
       </form>
 
       {events.map(ev => (
         <div className="card" key={ev.id}>
-          <strong>{ev.title}</strong>
-          <div className="small">From: {new Date(ev.start_time*1000).toLocaleString()} - To: {new Date(ev.end_time*1000).toLocaleString()}</div>
-          <div className="small">Status: {ev.status}</div>
-          <div style={{marginTop:8}}>
-            <button className="btn" onClick={()=>toggleSwappable(ev)}>{ev.status === 'SWAPPABLE' ? 'Make Busy' : 'Make Swappable'}</button>
+          <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px'}}>
+            <strong style={{fontSize: '18px'}}>{ev.title}</strong>
+            <span className={`status-badge ${getStatusClass(ev.status)}`}>{ev.status}</span>
+          </div>
+          <div className="small" style={{marginBottom: '8px'}}>
+            <strong>From:</strong> {new Date(ev.start_time*1000).toLocaleString()}
+          </div>
+          <div className="small" style={{marginBottom: '12px'}}>
+            <strong>To:</strong> {new Date(ev.end_time*1000).toLocaleString()}
+          </div>
+          <div>
+            <button 
+              className={`btn ${ev.status === 'SWAPPABLE' ? 'btn-secondary' : 'btn-success'}`}
+              onClick={()=>toggleSwappable(ev)}
+            >
+              {ev.status === 'SWAPPABLE' ? 'Make Busy' : 'Make Swappable'}
+            </button>
           </div>
         </div>
       ))}
-      {err && <div className="small" style={{color:'red'}}>{err}</div>}
+      {err && <div className="error-message">{err}</div>}
     </div>
   );
 }

@@ -1,26 +1,94 @@
 require('dotenv').config();
 const express = require('express');
 const Database = require('better-sqlite3');
-// const bcrypt = require('bcrypt');
 const bcrypt = require('bcryptjs');
-
-const sqlite3 = require("sqlite3").verbose();
-// const db = new sqlite3.Database("database.db");
-
-
 const jwt = require('jsonwebtoken');
 const cors = require('cors');
 const { v4: uuidv4 } = require('uuid');
 const path = require('path');
+const fs = require('fs');
 
 const DB_FILE = process.env.DB_FILE || './slotswapper.db';
 const JWT_SECRET = process.env.JWT_SECRET || 'dev_secret';
 const PORT = process.env.PORT || 4000;
 
+// Initialize database if it doesn't exist or tables don't exist
 const db = new Database(DB_FILE);
+
+// Check if tables exist, if not, create them
+try {
+  const userTable = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='users'").get();
+  if (!userTable) {
+    console.log('Initializing database...');
+    const migrations = fs.readFileSync(path.join(__dirname, 'migrations.sql'), 'utf8');
+    db.exec(migrations);
+    console.log('Database initialized successfully');
+  }
+} catch (error) {
+  console.error('Database initialization error:', error);
+  // If migrations.sql doesn't exist, create tables directly
+  try {
+    db.exec(`
+      PRAGMA foreign_keys = ON;
+      CREATE TABLE IF NOT EXISTS users (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        email TEXT UNIQUE NOT NULL,
+        password_hash TEXT NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      );
+      CREATE TABLE IF NOT EXISTS events (
+        id TEXT PRIMARY KEY,
+        owner_id TEXT NOT NULL,
+        title TEXT NOT NULL,
+        start_time INTEGER NOT NULL,
+        end_time INTEGER NOT NULL,
+        status TEXT NOT NULL CHECK(status IN ('BUSY','SWAPPABLE','SWAP_PENDING')),
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY(owner_id) REFERENCES users(id) ON DELETE CASCADE
+      );
+      CREATE TABLE IF NOT EXISTS swap_requests (
+        id TEXT PRIMARY KEY,
+        requester_id TEXT NOT NULL,
+        requestee_id TEXT NOT NULL,
+        my_slot_id TEXT NOT NULL,
+        their_slot_id TEXT NOT NULL,
+        status TEXT NOT NULL CHECK(status IN ('PENDING','ACCEPTED','REJECTED')),
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY(requester_id) REFERENCES users(id),
+        FOREIGN KEY(requestee_id) REFERENCES users(id),
+        FOREIGN KEY(my_slot_id) REFERENCES events(id),
+        FOREIGN KEY(their_slot_id) REFERENCES events(id)
+      );
+    `);
+    console.log('Database tables created successfully');
+  } catch (err) {
+    console.error('Error creating database tables:', err);
+  }
+}
 const app = express();
+
+// CORS configuration - allow requests from frontend
+app.use(cors({
+  origin: ['http://localhost:3000', 'http://127.0.0.1:3000'],
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
+
+// Request logging middleware
+app.use((req, res, next) => {
+  console.log(`[${new Date().toISOString()}] ${req.method} ${req.path}`);
+  next();
+});
+
 app.use(express.json());
-app.use(cors());
+
+// Health check endpoint
+app.get('/api/health', (req, res) => {
+  res.json({ status: 'ok', message: 'Server is running', timestamp: new Date().toISOString() });
+});
 
 // --- Auth helpers ---
 function signToken(user) {
@@ -42,31 +110,57 @@ function authMiddleware(req, res, next) {
 
 // --- Auth endpoints ---
 app.post('/api/signup', async (req, res) => {
-  const { name, email, password } = req.body;
-  if (!email || !password || !name) return res.status(400).json({ error: 'Missing fields' });
-  const hash = await bcrypt.hash(password, 10);
-  const id = uuidv4();
   try {
-    const stmt = db.prepare('INSERT INTO users (id,name,email,password_hash) VALUES (?,?,?,?)');
-    stmt.run(id, name, email, hash);
-    const token = signToken({ id, email, name });
-    res.json({ token, user: { id, name, email } });
-  } catch (e) {
-    if (e.message.includes('UNIQUE')) return res.status(400).json({ error: 'Email already in use' });
-    console.error(e);
-    res.status(500).json({ error: 'Server error' });
+    console.log('Signup request received:', { name: req.body.name, email: req.body.email });
+    const { name, email, password } = req.body;
+    if (!email || !password || !name) {
+      return res.status(400).json({ error: 'Missing fields' });
+    }
+    const hash = await bcrypt.hash(password, 10);
+    const id = uuidv4();
+    try {
+      const stmt = db.prepare('INSERT INTO users (id,name,email,password_hash) VALUES (?,?,?,?)');
+      stmt.run(id, name, email, hash);
+      const token = signToken({ id, email, name });
+      console.log('Signup successful for:', email);
+      res.json({ token, user: { id, name, email } });
+    } catch (dbError) {
+      console.error('Database error during signup:', dbError);
+      if (dbError.message && dbError.message.includes('UNIQUE')) {
+        return res.status(400).json({ error: 'Email already in use' });
+      }
+      res.status(500).json({ error: 'Database error: ' + dbError.message });
+    }
+  } catch (error) {
+    console.error('Signup error:', error);
+    res.status(500).json({ error: 'Server error: ' + error.message });
   }
 });
 
 app.post('/api/login', async (req, res) => {
-  const { email, password } = req.body;
-  if (!email || !password) return res.status(400).json({ error: 'Missing fields' });
-  const user = db.prepare('SELECT * FROM users WHERE email = ?').get(email);
-  if (!user) return res.status(401).json({ error: 'Invalid credentials' });
-  const ok = await bcrypt.compare(password, user.password_hash);
-  if (!ok) return res.status(401).json({ error: 'Invalid credentials' });
-  const token = signToken(user);
-  res.json({ token, user: { id: user.id, name: user.name, email: user.email } });
+  try {
+    console.log('Login request received for:', req.body.email);
+    const { email, password } = req.body;
+    if (!email || !password) {
+      return res.status(400).json({ error: 'Missing fields' });
+    }
+    const user = db.prepare('SELECT * FROM users WHERE email = ?').get(email);
+    if (!user) {
+      console.log('Login failed: User not found');
+      return res.status(401).json({ error: 'Invalid credentials' });
+    }
+    const ok = await bcrypt.compare(password, user.password_hash);
+    if (!ok) {
+      console.log('Login failed: Invalid password');
+      return res.status(401).json({ error: 'Invalid credentials' });
+    }
+    const token = signToken(user);
+    console.log('Login successful for:', email);
+    res.json({ token, user: { id: user.id, name: user.name, email: user.email } });
+  } catch (error) {
+    console.error('Login error:', error);
+    res.status(500).json({ error: 'Server error: ' + error.message });
+  }
 });
 
 // --- Events CRUD (protected) ---
@@ -249,6 +343,33 @@ app.get('/api/me', authMiddleware, (req, res) => {
 });
 
 // --- server start ---
-app.listen(PORT, () => {
-  console.log('Server listening on', PORT);
+const server = app.listen(PORT, () => {
+  console.log('=================================');
+  console.log(`🚀 SlotSwapper Backend Server`);
+  console.log(`✅ Server listening on http://localhost:${PORT}`);
+  console.log(`🌐 Also accessible at http://127.0.0.1:${PORT}`);
+  console.log(`📦 Database: ${DB_FILE}`);
+  console.log('=================================');
+  console.log('Testing health endpoint...');
+  console.log(`Health check: http://localhost:${PORT}/api/health`);
+});
+
+server.on('error', (err) => {
+  if (err.code === 'EADDRINUSE') {
+    console.error(`❌ Port ${PORT} is already in use!`);
+    console.error('Please stop the other process or change the PORT in .env');
+  } else {
+    console.error('❌ Server error:', err);
+  }
+  process.exit(1);
+});
+
+// Handle errors
+process.on('unhandledRejection', (err) => {
+  console.error('Unhandled Rejection:', err);
+});
+
+process.on('uncaughtException', (err) => {
+  console.error('Uncaught Exception:', err);
+  process.exit(1);
 });
